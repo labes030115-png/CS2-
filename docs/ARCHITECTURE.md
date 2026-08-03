@@ -113,6 +113,8 @@ class PriceSourceAdapter(Protocol):
 - completeness
 - raw_reference
 
+价格指标固定为 `lowest_listing`。领域模型和数据库约束必须拒绝其他指标；适配器收到上游额外价格字段时直接丢弃。
+
 ## 5. 调度
 
 - 每15分钟触发采集。

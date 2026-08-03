@@ -14,6 +14,9 @@ blocked_sources:
   - code: STEAM
     reason: "用户明确禁止任何Steam价格、换算价格或派生价格"
 
+allowed_metrics:
+  - lowest_listing
+
 required_metadata:
   - source_code
   - currency

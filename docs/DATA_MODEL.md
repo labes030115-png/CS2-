@@ -2,6 +2,8 @@
 
 以下为逻辑模型。Codex应使用Alembic逐步实现，不要一次创建所有未来字段。
 
+全项目唯一允许的价格指标是 `lowest_listing`。保留通用 `metric` 字段的表必须通过约束将当前允许值限制为该值。
+
 ## 1. taxonomy_groups
 
 收藏品来源分类。
@@ -115,7 +117,7 @@
 - id
 - asset_id
 - source_code
-- metric: lowest_listing / highest_buy_order
+- metric: lowest_listing
 - price_minor
 - currency
 - observed_at_utc
@@ -137,7 +139,7 @@
 - id
 - asset_id
 - source_code
-- metric
+- metric: lowest_listing
 - timeframe: 1h / 1d
 - bucket_start_utc
 - open_minor
@@ -213,7 +215,7 @@
 - id
 - asset_id
 - source_code
-- metric
+- metric: lowest_listing
 - currency
 - resolution
 - starts_at
@@ -224,6 +226,8 @@
 - created_at
 
 实际价格点可复用price_snapshots或单独建表，需根据导入规模评估。
+
+外部文件导入只写入 `lowest_listing`。旧文件中已取消的旧设计列 `highest_buy_order` 仅用于兼容识别：导入器忽略该列，并在导入报告记录“已忽略非支持指标”。
 
 ## 14. manual_overrides
 
@@ -260,12 +264,14 @@
 - error_summary
 - log_reference
 
+采集任务只统计最低在售价，不创建其他价格指标的任务或缺失警告。
+
 ## 17. gaps
 
 - id
 - asset_id
 - source_code
-- metric
+- metric: lowest_listing
 - starts_at
 - ends_at
 - cause

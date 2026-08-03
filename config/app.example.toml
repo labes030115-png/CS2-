@@ -22,7 +22,6 @@ log_days = 30
 [prices]
 primary_source = "YYYP"
 primary_metric = "lowest_listing"
-show_highest_buy_order = true
 forbid_steam = true
 external_fallback_order = ["BUFF", "C5", "IGXE", "5E"]
 
