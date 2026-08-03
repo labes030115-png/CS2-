@@ -1,0 +1,13 @@
+{
+  "project": "CS2 Collection Price Research Dashboard",
+  "target_os": "Windows",
+  "runtime": "local_only",
+  "primary_price_source": "YYYP lowest listing",
+  "collection_interval_minutes": 15,
+  "dashboard_refresh_minutes": 60,
+  "database": "SQLite",
+  "steam_prices": "forbidden",
+  "ai_api_at_runtime": false,
+  "first_milestone": "data source capability probe",
+  "generated_on": "2026-08-03"
+}
