@@ -1,6 +1,7 @@
 import asyncio
 import json
 from decimal import Decimal
+from pathlib import Path
 
 import httpx
 import pytest
@@ -19,6 +20,7 @@ from backend.app.sources.csqaq import (
 API_TOKEN = "test-token-must-never-leak"
 BASE_URL = "https://api.csqaq.com/api/v1"
 TEST_ITEM = "AWP | Snake Camo (Factory New)"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def config() -> CSQAQConfig:
@@ -98,6 +100,52 @@ def test_current_prices_only_expose_yyyp_lowest_listing() -> None:
     assert API_TOKEN not in repr(prices)
 
 
+def test_current_prices_skip_empty_nonpositive_and_failed_items() -> None:
+    item_names = [
+        "valid-item",
+        "null-item",
+        "zero-item",
+        "negative-item",
+        "failed-item",
+    ]
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "code": 200,
+                "msg": "Success",
+                "data": {
+                    "success": {
+                        "valid-item": {
+                            "goodId": 1,
+                            "yyypSellPrice": 12.34,
+                        },
+                        "null-item": {
+                            "goodId": 2,
+                            "yyypSellPrice": None,
+                        },
+                        "zero-item": {
+                            "goodId": 3,
+                            "yyypSellPrice": 0,
+                        },
+                        "negative-item": {
+                            "goodId": 4,
+                            "yyypSellPrice": -1,
+                        },
+                    },
+                    "error": ["failed-item"],
+                },
+            },
+        )
+
+    prices = asyncio.run(fetch_with_handler(handler, item_names))
+
+    assert [price.source_item_id for price in prices] == ["valid-item"]
+    assert prices[0].metric is PriceMetric.LOWEST_LISTING
+    assert prices[0].value == Decimal("12.34")
+
+
 def test_adapter_does_not_expose_unsupported_price_capability() -> None:
     adapter = CSQAQAdapter(config(), minimum_interval_seconds=0)
 
@@ -139,6 +187,61 @@ def test_http_errors_are_classified_without_leaking_token(
         asyncio.run(fetch_with_handler(handler))
 
     assert API_TOKEN not in str(caught.value)
+
+
+@pytest.mark.parametrize("http_status", [401, 403])
+def test_ip_whitelist_errors_are_distinct_and_redacted(
+    http_status: int,
+) -> None:
+    exposed_ip = "203.0.113.10"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            http_status,
+            json={
+                "code": http_status,
+                "msg": f"当前IP {exposed_ip} 不在白名单 {API_TOKEN}",
+            },
+        )
+
+    with pytest.raises(CSQAQAuthenticationError) as caught:
+        asyncio.run(fetch_with_handler(handler))
+
+    assert type(caught.value).__name__ == "CSQAQIPAuthorizationError"
+    assert exposed_ip not in str(caught.value)
+    assert API_TOKEN not in str(caught.value)
+
+
+def test_business_ip_whitelist_error_is_distinct() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"code": 401, "msg": "IP白名单未绑定"},
+        )
+
+    with pytest.raises(CSQAQAuthenticationError) as caught:
+        asyncio.run(fetch_with_handler(handler))
+
+    assert type(caught.value).__name__ == "CSQAQIPAuthorizationError"
+
+
+def test_redacted_current_price_sample_is_synthetic_and_secret_free() -> None:
+    sample_path = (
+        PROJECT_ROOT
+        / "research"
+        / "samples"
+        / "csqaq_current_price_redacted.json"
+    )
+    sample_text = sample_path.read_text(encoding="utf-8")
+    sample = json.loads(sample_text)
+
+    assert sample["_meta"]["synthetic"] is True
+    assert sample["_meta"]["metric"] == "lowest_listing"
+    assert sample["response"]["data"]["error"] == ["EXAMPLE_MISSING"]
+    assert "ApiToken" not in sample_text
+    assert "Authorization" not in sample_text
+    assert "Cookie" not in sample_text
+    assert API_TOKEN not in sample_text
 
 
 def test_timeout_becomes_unavailable_error() -> None:

@@ -40,6 +40,10 @@ class CSQAQAuthenticationError(CSQAQError):
     """Raised when the token or IP authorization is rejected."""
 
 
+class CSQAQIPAuthorizationError(CSQAQAuthenticationError):
+    """Raised when CSQAQ rejects the caller's bound IP address."""
+
+
 class CSQAQRateLimitError(CSQAQError):
     """Raised when CSQAQ rejects a request for excessive frequency."""
 
@@ -254,7 +258,10 @@ class CSQAQAdapter:
             ) from exc
 
         if response.status_code < 200 or response.status_code >= 300:
-            self._raise_for_status(response.status_code)
+            self._raise_for_status(
+                response.status_code,
+                self._response_message(response),
+            )
         try:
             envelope = response.json()
         except ValueError as exc:
@@ -266,7 +273,11 @@ class CSQAQAdapter:
         code = envelope.get("code")
         if code != 200:
             if isinstance(code, int):
-                self._raise_for_status(code)
+                message = envelope.get("msg")
+                self._raise_for_status(
+                    code,
+                    message if isinstance(message, str) else None,
+                )
             raise CSQAQResponseError(
                 "CSQAQ response did not contain a successful status code"
             )
@@ -334,10 +345,37 @@ class CSQAQAdapter:
         return price
 
     @staticmethod
-    def _raise_for_status(status_code: int) -> None:
+    def _response_message(response: httpx.Response) -> str | None:
+        try:
+            payload = response.json()
+        except ValueError:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        message = payload.get("msg")
+        return message if isinstance(message, str) else None
+
+    @staticmethod
+    def _is_ip_authorization_message(message: str | None) -> bool:
+        if not message:
+            return False
+        normalized = message.casefold()
+        return "ip" in normalized and any(
+            marker in normalized for marker in ("白名单", "绑定", "授权")
+        )
+
+    @staticmethod
+    def _raise_for_status(
+        status_code: int,
+        message: str | None = None,
+    ) -> None:
         if status_code in {400, 401, 403}:
+            if CSQAQAdapter._is_ip_authorization_message(message):
+                raise CSQAQIPAuthorizationError(
+                    "CSQAQ IP authorization or whitelist binding failed"
+                )
             raise CSQAQAuthenticationError(
-                "CSQAQ authentication or IP authorization failed"
+                "CSQAQ token authentication failed"
             )
         if status_code == 429:
             raise CSQAQRateLimitError("CSQAQ request rate limit exceeded")

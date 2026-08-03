@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "synthetic": true,
+    "purpose": "CSQAQ current-price contract test fixture",
+    "metric": "lowest_listing",
+    "contains_real_response": false
+  },
+  "response": {
+    "code": 200,
+    "msg": "Success",
+    "data": {
+      "success": {
+        "EXAMPLE_ITEM": {
+          "goodId": 100001,
+          "name": "示例饰品",
+          "marketHashName": "EXAMPLE_ITEM",
+          "yyypSellPrice": 12.34,
+          "yyypSellNum": 2
+        }
+      },
+      "error": [
+        "EXAMPLE_MISSING"
+      ]
+    }
+  }
+}

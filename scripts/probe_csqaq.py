@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import sys
 from datetime import datetime, timezone
 from typing import Protocol
 
 from backend.app.sources.base import CurrentPrice
-from backend.app.sources.csqaq import CSQAQAdapter, CSQAQConfig, CSQAQError
 
 
 PROBE_TARGETS = (
+    {
+        "asset_kind": "target_skin",
+        "market_hash_name": (
+            "AK-47 | Consequence of the Jinn (Factory New)"
+        ),
+    },
     {
         "asset_kind": "case",
         "market_hash_name": "Fracture Case",
@@ -46,7 +49,7 @@ async def run_probe(
     *,
     checked_at: datetime | None = None,
 ) -> dict[str, object]:
-    """Probe three asset classes and return a strictly redacted result."""
+    """Probe four approved samples and return a strictly redacted result."""
     request_names = [target["market_hash_name"] for target in PROBE_TARGETS]
     observations = await adapter.fetch_current_prices(request_names)
     by_name = {item.source_item_id: item for item in observations}
@@ -83,23 +86,7 @@ async def run_probe(
     }
 
 
-async def main() -> int:
-    try:
-        config = CSQAQConfig.from_env()
-        async with CSQAQAdapter(config) as adapter:
-            result = await run_probe(adapter)
-    except CSQAQError as exc:
-        error = {
-            "status": "error",
-            "error_type": type(exc).__name__,
-            "message": str(exc),
-        }
-        print(json.dumps(error, ensure_ascii=False), file=sys.stderr)
-        return 2
-
-    print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0
-
-
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(main()))
+    from scripts.csqaq_local import main
+
+    raise SystemExit(asyncio.run(main(("probe", "current"))))
